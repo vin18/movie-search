@@ -9,3 +9,11 @@ export const movieInputSchema = z.object({
 });
 
 export type MovieInput = z.infer<typeof movieInputSchema>;
+
+export const movieSearchQuerySchema = z.object({
+  q: z.string().min(1),
+  limit: z.coerce.number().int().positive().default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type MovieSearchQuery = z.infer<typeof movieSearchQuerySchema>;

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { esClient } from "../lib/elasticsearch";
 import { MOVIES_INDEX } from "../elasticsearch/setupMoviesIndex";
-import { movieInputSchema } from "../schemas/movie";
+import { movieInputSchema, movieSearchQuerySchema } from "../schemas/movie";
 import { Prisma } from "../generated/prisma/client";
 
 export const moviesRouter = Router();
@@ -38,6 +38,68 @@ moviesRouter.get("/", async (req, res, next) => {
     });
 
     res.status(200).json(movies);
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function searchMoviesInDatabase(q: string, limit: number, offset: number) {
+  return prisma.movie.findMany({
+    where: {
+      title: { contains: q, mode: "insensitive" },
+    },
+    take: limit,
+    skip: offset,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+moviesRouter.get("/search", async (req, res, next) => {
+  try {
+    const { q, limit, offset } = movieSearchQuerySchema.parse(req.query);
+
+    try {
+      const result = await esClient.search(
+        {
+          index: MOVIES_INDEX,
+          query: {
+            match: {
+              title: {
+                query: q,
+                fuzziness: "AUTO",
+              },
+            },
+          },
+          from: offset,
+          size: limit,
+        },
+        { requestTimeout: 3000, maxRetries: 0 },
+      );
+
+      const movies = result.hits.hits.map((hit) => hit._source);
+
+      if (movies.length > 0) {
+        res
+          .status(200)
+          .json({ source: "elasticsearch", searchDegraded: false, movies });
+        return;
+      }
+
+      const dbMovies = await searchMoviesInDatabase(q, limit, offset);
+      res
+        .status(200)
+        .json({ source: "database", searchDegraded: true, movies: dbMovies });
+    } catch (esErr) {
+      console.warn(
+        "Elasticsearch search failed, falling back to Postgres:",
+        esErr,
+      );
+
+      const movies = await searchMoviesInDatabase(q, limit, offset);
+      res
+        .status(200)
+        .json({ source: "database", searchDegraded: true, movies });
+    }
   } catch (err) {
     next(err);
   }
