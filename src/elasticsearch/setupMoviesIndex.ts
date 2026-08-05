@@ -58,9 +58,11 @@ async function setupMoviesIndex() {
   console.log(`Index "${MOVIES_INDEX}" created.`);
 }
 
-setupMoviesIndex()
-  .catch((err) => {
-    console.error("Failed to set up movies index:", err);
-    process.exit(1);
-  })
-  .finally(() => esClient.close());
+if (require.main === module) {
+  setupMoviesIndex()
+    .catch((err) => {
+      console.error("Failed to set up movies index:", err);
+      process.exit(1);
+    })
+    .finally(() => esClient.close());
+}

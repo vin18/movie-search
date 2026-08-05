@@ -1,0 +1,113 @@
+import { Router } from "express";
+import { prisma } from "../lib/prisma";
+import { esClient } from "../lib/elasticsearch";
+import { MOVIES_INDEX } from "../elasticsearch/setupMoviesIndex";
+import { movieInputSchema } from "../schemas/movie";
+import { Prisma } from "../generated/prisma/client";
+
+export const moviesRouter = Router();
+
+moviesRouter.post("/", async (req, res, next) => {
+  try {
+    const input = movieInputSchema.parse(req.body);
+
+    const movie = await prisma.movie.create({ data: input });
+
+    await esClient.index({
+      index: MOVIES_INDEX,
+      id: movie.id,
+      document: movie,
+      refresh: "wait_for",
+    });
+
+    res.status(201).json(movie);
+  } catch (err) {
+    next(err);
+  }
+});
+
+moviesRouter.get("/", async (req, res, next) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const offset = req.query.offset ? Number(req.query.offset) : 0;
+
+    const movies = await prisma.movie.findMany({
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json(movies);
+  } catch (err) {
+    next(err);
+  }
+});
+
+moviesRouter.get("/:id", async (req, res, next) => {
+  try {
+    const movie = await prisma.movie.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!movie) {
+      res.status(404).json({ error: "Movie not found" });
+      return;
+    }
+
+    res.status(200).json(movie);
+  } catch (err) {
+    next(err);
+  }
+});
+
+moviesRouter.put("/:id", async (req, res, next) => {
+  try {
+    const input = movieInputSchema.parse(req.body);
+
+    const movie = await prisma.movie.update({
+      where: { id: req.params.id },
+      data: input,
+    });
+
+    await esClient.index({
+      index: MOVIES_INDEX,
+      id: movie.id,
+      document: movie,
+      refresh: "wait_for",
+    });
+
+    res.status(200).json(movie);
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      res.status(404).json({ error: "Movie not found" });
+      return;
+    }
+    next(err);
+  }
+});
+
+moviesRouter.delete("/:id", async (req, res, next) => {
+  try {
+    await prisma.movie.delete({ where: { id: req.params.id } });
+
+    await esClient.delete({
+      index: MOVIES_INDEX,
+      id: req.params.id,
+      refresh: "wait_for",
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      res.status(404).json({ error: "Movie not found" });
+      return;
+    }
+    next(err);
+  }
+});
