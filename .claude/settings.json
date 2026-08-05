@@ -3,7 +3,9 @@
     "allow": [
       "Bash(lsof -nP -iTCP:9200 -sTCP:LISTEN)",
       "Bash(echo \"exit:$?\")",
-      "Bash(curl -s \"http://localhost:9200/_cluster/health?pretty\")"
+      "Bash(curl -s \"http://localhost:9200/_cluster/health?pretty\")",
+      "Bash(curl -s \"http://localhost:9200/movies/_mapping?pretty\")",
+      "Bash(curl -s \"http://localhost:9200/movies/_settings?pretty\")"
     ]
   }
 }
