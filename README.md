@@ -10,12 +10,14 @@ The project is built in two parts against the same codebase:
 ## Running locally
 
 ```bash
-docker compose up -d postgres elasticsearch
+docker compose up -d postgres elasticsearch temporal-postgres temporal temporal-ui
 npm install
 npm run db:migrate
 npm run es:setup
 npm run dev
 ```
+
+Temporal Web UI: http://localhost:8080
 
 ## Architectural Decisions
 
@@ -23,6 +25,8 @@ npm run dev
 - **Built in two explicit parts**, per the intro above — Part 1 (naive dual-write) is intentionally shipped first so the failure modes are concrete before Part 2 (outbox + Temporal) fixes them.
 - **Prisma 7 + `@prisma/adapter-pg` driver adapter.** Prisma 7 removed the built-in query engine binary for SQL providers — a driver adapter (wrapping `pg`) is now required for both the CLI and the runtime client.
 - **Elasticsearch mapping:** `title`/`description` use the `english` analyzer for stemmed full-text relevance; `title`/`director` carry a `keyword` subfield for exact match/sort/aggregation; `genres` is plain `keyword` (no analysis needed for exact filtering). Settings are `1` shard / `0` replicas, appropriate for a single-node dev cluster — replicas would sit permanently unassigned and report cluster status `yellow`.
+- **Transactional outbox for writes:** `POST /movies` generates the movie id up front, then inserts the movie row and an `outbox_events` row in a single Postgres transaction. The request never calls Elasticsearch directly — it returns `indexingStatus: "pending"` immediately. A Temporal workflow (upcoming) is responsible for reading pending outbox events and propagating them to Elasticsearch, with retries.
+- **Temporal runs against its own dedicated Postgres instance** (`temporal-postgres`, via the `temporalio/auto-setup` image), separate from the application's `postgres` container. This keeps Temporal's internal system/visibility schema lifecycle independent from `movies`/`outbox_events` data — matching Temporal's own documented reference deployment rather than sharing one Postgres instance across two unrelated schemas.
 - **Search strategy:** primary path is an Elasticsearch `match` query on `title` with `fuzziness: "AUTO"` for typo tolerance. Falls back to a Postgres `contains` (case-insensitive substring) query in two cases: when Elasticsearch is unreachable, *and* when Elasticsearch is reachable but returns zero hits (treating an empty ES result as unproven rather than final, since Postgres is the source of truth). Every response identifies which store actually served it: `{ source: "elasticsearch" | "database", searchDegraded: boolean, movies }`.
 - **`maxRetries: 0` on the Elasticsearch search call specifically.** The client's default (`maxRetries: 3`, with backoff) meant a down cluster took ~8.5s to fail over to Postgres despite an explicit `requestTimeout: 3000` — the timeout only bounds a single attempt, not the retry loop. Disabling retries on this call brought failover down to ~200ms.
 
