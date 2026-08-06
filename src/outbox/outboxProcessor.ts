@@ -21,7 +21,10 @@ async function processOutboxBatch(): Promise<void> {
   const client = await getTemporalClient();
 
   for (const event of pendingEvents) {
-    if (event.eventType !== "MOVIE_CREATED") {
+    if (
+      event.eventType !== "MOVIE_CREATED" &&
+      event.eventType !== "MOVIE_UPDATED"
+    ) {
       console.warn(
         `Outbox processor: no handler yet for eventType "${event.eventType}", skipping event ${event.id}.`,
       );

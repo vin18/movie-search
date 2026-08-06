@@ -6,7 +6,8 @@
       "Bash(curl -s \"http://localhost:9200/_cluster/health?pretty\")",
       "Bash(curl -s \"http://localhost:9200/movies/_mapping?pretty\")",
       "Bash(curl -s \"http://localhost:9200/movies/_settings?pretty\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(curl -s -w '\\\\nHTTP_STATUS:%{http_code}\\\\n' -X PUT http://localhost:3000/movies/00000000-0000-0000-0000-000000000000 -H 'Content-Type: application/json' -d '{\"title\":\"X\",\"description\":\"Y\",\"genres\":[\"A\"],\"releaseYear\":2000,\"director\":\"Z\"}')"
     ]
   }
 }

@@ -133,16 +133,21 @@ moviesRouter.put("/:id", async (req, res, next) => {
   try {
     const input = movieInputSchema.parse(req.body);
 
-    const movie = await prisma.movie.update({
-      where: { id: req.params.id },
-      data: input,
-    });
+    const movie = await prisma.$transaction(async (tx) => {
+      const updated = await tx.movie.update({
+        where: { id: req.params.id },
+        data: { ...input, indexingStatus: "PENDING" },
+      });
 
-    await esClient.index({
-      index: MOVIES_INDEX,
-      id: movie.id,
-      document: movie,
-      refresh: "wait_for",
+      await tx.outboxEvent.create({
+        data: {
+          aggregateId: updated.id,
+          eventType: "MOVIE_UPDATED",
+          payload: updated,
+        },
+      });
+
+      return updated;
     });
 
     res.status(200).json(movie);
