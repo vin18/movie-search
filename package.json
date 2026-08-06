@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "es:setup": "tsx src/elasticsearch/setupMoviesIndex.ts"
+    "es:setup": "tsx src/elasticsearch/setupMoviesIndex.ts",
+    "worker": "tsx watch src/worker.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.19.2",

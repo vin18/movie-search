@@ -27,7 +27,7 @@ moviesRouter.post("/", async (req, res, next) => {
       return created;
     });
 
-    res.status(201).json({ ...movie, indexingStatus: "pending" });
+    res.status(201).json(movie);
   } catch (err) {
     next(err);
   }
