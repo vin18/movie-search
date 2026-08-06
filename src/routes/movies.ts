@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { esClient } from "../lib/elasticsearch";
@@ -10,17 +11,23 @@ export const moviesRouter = Router();
 moviesRouter.post("/", async (req, res, next) => {
   try {
     const input = movieInputSchema.parse(req.body);
+    const id = randomUUID();
 
-    const movie = await prisma.movie.create({ data: input });
+    const movie = await prisma.$transaction(async (tx) => {
+      const created = await tx.movie.create({ data: { id, ...input } });
 
-    await esClient.index({
-      index: MOVIES_INDEX,
-      id: movie.id,
-      document: movie,
-      refresh: "wait_for",
+      await tx.outboxEvent.create({
+        data: {
+          aggregateId: created.id,
+          eventType: "MOVIE_CREATED",
+          payload: created,
+        },
+      });
+
+      return created;
     });
 
-    res.status(201).json(movie);
+    res.status(201).json({ ...movie, indexingStatus: "pending" });
   } catch (err) {
     next(err);
   }

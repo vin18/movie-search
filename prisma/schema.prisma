@@ -24,3 +24,21 @@ model Movie {
 
   @@map("movies")
 }
+
+enum OutboxEventType {
+  MOVIE_CREATED
+  MOVIE_UPDATED
+  MOVIE_DELETED
+}
+
+model OutboxEvent {
+  id          String          @id @default(uuid())
+  aggregateId String
+  eventType   OutboxEventType
+  payload     Json
+  createdAt   DateTime        @default(now())
+  processedAt DateTime?
+
+  @@index([processedAt, createdAt])
+  @@map("outbox_events")
+}
